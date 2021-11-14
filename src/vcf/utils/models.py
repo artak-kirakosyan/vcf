@@ -1,5 +1,5 @@
 import re
-from typing import Set, List
+from typing import Set
 
 
 class PhoneNumber:
@@ -16,19 +16,25 @@ class PhoneNumber:
         self.phone_type = phone_type
 
     def __repr__(self):
-        rpr = "PhoneNumber(number=%s, phone_type=%s)" % (self.number, self.phone_type)
+        rpr = "PhoneNumber(number=%s, phone_type=%s)"
+        rpr %= (self.number, self.phone_type)
         return rpr
 
     def __str__(self):
-        return f"{self.__phone_line}{self.__type_line}{self.phone_type}:{self.number}"
+        return f"{self.__phone_line}{self.__type_line}" \
+               f"{self.phone_type}:{self.number}"
 
     def __eq__(self, other: "PhoneNumber"):
         if not isinstance(other, self.__class__):
             return False
-        return self.number == other.number and self.phone_type == other.phone_type
+        number_equal = self.number == other.number
+        phone_equal = self.phone_type == other.phone_type
+        return number_equal and phone_equal
 
     def __hash__(self):
-        return hash(self.number) * self.__number_hash + hash(self.phone_type) * self.__type_hash
+        num_hash = hash(self.number) * self.__number_hash
+        type_hash = hash(self.phone_type) * self.__type_hash
+        return num_hash + type_hash
 
     @classmethod
     def from_vcf_line(cls, line: str, preserve_type: bool = False):
@@ -104,13 +110,17 @@ class VCFContact:
 
     @property
     def full_name(self):
-        return " ".join([part for part in self.full_name_parts if part.strip() != ""])
+        return " ".join(
+            [part for part in self.full_name_parts if part.strip() != ""]
+        )
 
     def get_full_name_line(self):
         return self.__full_name + self.full_name
 
     def get_name_line(self):
-        return self.__name + self.__name_pattern_replacement % (*self.name_parts, )
+        name = self.__name
+        name += self.__name_pattern_replacement % (*self.name_parts,)
+        return name
 
     def add_line(self, line: str):
         if self.is_service_line(line):
@@ -178,10 +188,9 @@ class VCFContact:
         return sorted([str(phone) for phone in self.phones])
 
     def get_categories(self):
-        if self.categories:
-            return self.__category + self.__category_separator.join(self.categories)
-        else:
+        if not self.categories:
             return None
+        return self.__category + self.__category_separator.join(self.categories)
 
     def is_empty(self):
         return len(self.phones) == 0
@@ -244,55 +253,3 @@ class VCFContact:
     @classmethod
     def is_full_name_line(cls, line: str):
         return line.startswith(cls.__full_name)
-
-
-def parse_vcf_file(file_path='removed_duplicates.vcf') -> List[VCFContact]:
-    with open(file_path) as f:
-        content = f.read()
-        vcf_lines = content.split("\n")
-
-    parsed_contracts = []
-    current_contact = []
-    for line in vcf_lines:
-        if VCFContact.is_end_of_contact(line):
-            parsed_contracts.append(current_contact)
-            current_contact = []
-            continue
-        if VCFContact.is_service_line(line):
-            continue
-        current_contact.append(line)
-
-    vcf_contacts = []
-    for contact_lines in parsed_contracts:
-        contact = VCFContact()
-        vcf_contacts.append(contact)
-        for line in contact_lines:
-            contact.add_line(line)
-
-    return vcf_contacts
-
-
-def write_contacts_to_vcf_file(
-        contacts: List[VCFContact],
-        file_name="cleaned.vcf",
-        version: float = 3.0,
-        include_unprocessed_values: bool = False,
-):
-    vcf_content = ""
-    for contact in contacts:
-        try:
-            vcf_content += contact.to_vcf(version=version, include_other_info=include_unprocessed_values)
-        except ValueError:
-            print("Empty contact: %s" % contact)
-    with open(file_name, "w") as f:
-        f.write(vcf_content)
-
-
-def clean_vcf(file_path: str):
-    contacts = parse_vcf_file(file_path=file_path)
-    write_contacts_to_vcf_file(
-        contacts=contacts,
-        file_name=file_path,
-        version=3.0,
-        include_unprocessed_values=False,
-    )
